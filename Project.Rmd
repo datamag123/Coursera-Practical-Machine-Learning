@@ -1,0 +1,106 @@
+Practical Machine Learning Project
+--------------------------------------------------------
+
+
+
+Summary
+--------------------------------------------------------
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+
+* exactly according to the specification (Class A)
+* throwing the elbows to the front (Class B)
+* lifting the dumbbell only halfway (Class C)
+* lowering the dumbbell only halfway (Class D)
+* throwing the hips to the front (Class E)
+
+Due to extremely long running time with caret's train function, parallel processing and randomForest's randomForest method are chosen(~1 min).
+Libraries, Options and Data Load
+
+This script assumes that the training set and the test set are in the same directory. 
+
+```{r}
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(Hmisc)
+library(foreach)
+library(doParallel)
+```
+
+```{r}
+#options(warn=1)
+#options(stringsAsFactors = FALSE)
+testing <-read.csv("C:/Users/HP/Desktop/Coursera/Practical Machine Learning/pml-testing.csv")
+training <- read.csv("C:/Users/HP/Desktop/Coursera/Practical Machine Learning/pml-training.csv")
+```
+
+
+
+Cleaning Data and Select Features
+--------------------------------------------------------
+A brief look at the data revealed many columns with mainly NA's and finally lead to select only the main acceleration columns.
+
+```{r}
+set.seed(357)
+training <- training[,union(grep("^accel_", colnames(training)),grep("classe",colnames(training)) )] 
+testing <- testing[,union(grep("^accel_", colnames(testing)),grep("classe",colnames(testing)) )] 
+names(training)
+```
+
+
+Data Partition
+--------------------------------------------------------
+```{r}
+##Split trainingset into training sample(80%) and test sample(20%)
+partition <- createDataPartition(y = training$classe, p = 0.75, list = FALSE)
+sample1 <- training[partition, ]
+psample1 <-  training[-partition, ]
+```
+
+* Converting features
+```{r}
+##Classification-feature (classe) to factor, all others as numeric
+sample1$classe <-as.factor(sample1$classe)
+sample1[, 1:6] <- sapply(sample1[, 1:6], as.numeric)
+psample1$classe <-as.factor(psample1$classe)
+psample1[, 1:6] <- sapply(psample1[, 1:6], as.numeric)
+```
+
+
+Model Build
+--------------------------------------------------------
+
+
+
+```{r}
+##Significant speedup using Parallel Processing
+registerDoParallel()
+rf <- foreach(ntree=rep(150, 6), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+        randomForest(x=sample1[,1:12], y=sample1$classe, ntree=ntree)
+}
+```
+
+
+
+Model Evaluate
+--------------------------------------------------------
+```{r}
+pred0 <- predict(rf,psample1)
+confusionMatrix(pred0,psample1$classe)
+```
+
+
+
+Predict Answers to submit
+--------------------------------------------------------
+```{r}
+predict(rf, testing)
+```
+
+
+
+
+
+Conclusion
+--------------------------------------------------------
+Because of an accuracy of around 96% it was expected nearly all of the answers to be correct. However there was an error found for answer 3.
